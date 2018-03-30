@@ -48,9 +48,7 @@ pub trait Inv: Unit + private::Sealed where Self::Inner: Unit {
 ///
 /// ```
 /// use yaioum::*;
-///
-/// struct Meter;
-/// impl Unit for Meter {}
+/// use yaioum::si::*;
 ///
 /// let one_meter : Measure<_, Meter> = Measure::new(1);
 /// ```
@@ -70,9 +68,7 @@ impl<T, U: Unit> Measure<T, U> {
     ///
     /// ```
     /// use yaioum::*;
-    ///
-    /// struct Meter;
-    /// impl Unit for Meter {}
+    /// use yaioum::si::*;
     ///
     /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
     /// let one_meter_isize : Measure<i64, Meter> = Measure::from(one_meter_usize);
@@ -92,9 +88,7 @@ impl<T, U: Unit> Measure<T, U> {
     ///
     /// ```
     /// use yaioum::*;
-    ///
-    /// struct Meter;
-    /// impl Unit for Meter {}
+    /// use yaioum::si::*;
     ///
     /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
     /// let one_meter_isize : Measure<i64, Meter> = one_meter_usize.into();
@@ -152,9 +146,7 @@ impl<T, U: Unit> Ord for Measure<T, U> where T: Ord {
 ///
 /// ```
 /// use yaioum::*;
-///
-/// struct Meter;
-/// impl Unit for Meter {}
+/// use yaioum::si::*;
 ///
 /// let one_meter : Measure<i32, Meter> = Measure::new(1);
 /// let two_meters = one_meter + one_meter;
@@ -176,9 +168,7 @@ impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U> where T: std::ops::Mul<T> {
     ///
     /// ```
     /// use yaioum::*;
-    ///
-    /// struct Meter;
-    /// impl Unit for Meter {}
+    /// use yaioum::si::*;
     ///
     /// let one_meter : Measure<i32, Meter> = Measure::new(1);
     /// let ten_meters : Measure<i32, Meter> = one_meter * 10;
@@ -202,9 +192,7 @@ impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
     ///
     /// ```
     /// use yaioum::*;
-    ///
-    /// struct Meter;
-    /// impl Unit for Meter {}
+    /// use yaioum::si::*;
     ///
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
     /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = two_meters * two_meters;
@@ -226,9 +214,7 @@ impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
     ///
     /// ```
     /// use yaioum::*;
-    ///
-    /// struct Meter;
-    /// impl Unit for Meter {}
+    /// use yaioum::si::*;
     ///
     /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = Measure::new(4);
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
