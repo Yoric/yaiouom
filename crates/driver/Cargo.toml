@@ -1,0 +1,7 @@
+[package]
+name = "yaiouom-driver"
+version = "0.1.0"
+authors = ["David Teller <D.O.Teller@gmail.com>"]
+
+[dependencies]
+log = "*"

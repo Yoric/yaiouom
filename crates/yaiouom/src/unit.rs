@@ -7,7 +7,11 @@ use std::marker::PhantomData;
 ///
 /// This trait is meant to be used mainly with void structs, but can
 /// be implemented by any type.
-pub trait Unit {}
+pub trait Unit {
+    fn new<T>(value: T) -> Measure<T, Self> where Self: Sized {
+        Measure::new(value)
+    }
+}
 
 /// A value with a unit.
 pub struct Measure<T, U: Unit> {
@@ -44,18 +48,47 @@ pub trait Inv: Unit + private::Sealed where Self::Inner: Unit {
 }
 
 
-/// Convert from a dimensionless unit.
-///
-/// ```
-/// use yaioum::*;
-/// use yaioum::si::*;
-///
-/// let one_meter : Measure<_, Meter> = Measure::new(1);
-/// ```
 impl<T, U: Unit> Measure<T, U> {
+    /// Convert from a dimensionless unit.
+    ///
+    /// ```
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
+    ///
+    /// let one_meter : Measure<_, Meter> = Measure::new(1);
+    /// ```
+    ///
+    /// # Warning
+    ///
+    /// This function is somewhat unsafe, as you can use it
+    /// to build values that are fully polymorphic in unit.
+    ///
+    /// Future versions will make this constructor private and
+    /// hide it behind syntactic sugar.
     pub fn new(value: T) -> Self {
         Self {
             value,
+            unit: PhantomData,
+        }
+    }
+
+    /// Unify two measures.
+    ///
+    /// # Warning
+    ///
+    /// With out-of-the-box Rust, this method is unsafe wrt units of measure.
+    /// The companion linter is necessary to check that the call to `unify`
+    /// is safe.
+    ///
+    /// # Future
+    ///
+    /// For a future version, we may introduce a dynamically typed implementation
+    /// of `unify`, for users of vanilla Rust in debug mode.
+    #[allow(unused_attributes)]
+    #[rustc_yaiouom_check_unify]
+    pub fn unify<V: Unit>(self) -> Measure<T, V> {
+        Measure {
+            value: self.value,
             unit: PhantomData,
         }
     }
@@ -67,10 +100,10 @@ impl<T, U: Unit> Measure<T, U> {
     /// with the reflexive implementation.
     ///
     /// ```
-    /// use yaioum::*;
-    /// use yaioum::si::*;
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
-    /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
+    /// let one_meter_usize = Meter::new(1 as i32);
     /// let one_meter_isize : Measure<i64, Meter> = Measure::from(one_meter_usize);
     /// ```
     pub fn from<V>(value: Measure<V, U>) -> Self where T: From<V> {
@@ -87,8 +120,8 @@ impl<T, U: Unit> Measure<T, U> {
     /// with the reflexive implementation.
     ///
     /// ```
-    /// use yaioum::*;
-    /// use yaioum::si::*;
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
     /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
     /// let one_meter_isize : Measure<i64, Meter> = one_meter_usize.into();
@@ -145,8 +178,8 @@ impl<T, U: Unit> Ord for Measure<T, U> where T: Ord {
 /// a time and a duration or a point and a vector.
 ///
 /// ```
-/// use yaioum::*;
-/// use yaioum::si::*;
+/// use yaiouom::*;
+/// use yaiouom::si::*;
 ///
 /// let one_meter : Measure<i32, Meter> = Measure::new(1);
 /// let two_meters = one_meter + one_meter;
@@ -167,8 +200,8 @@ impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U> where T: std::ops::Mul<T> {
     /// Multiply a dimensionless value with a measure.
     ///
     /// ```
-    /// use yaioum::*;
-    /// use yaioum::si::*;
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
     /// let one_meter : Measure<i32, Meter> = Measure::new(1);
     /// let ten_meters : Measure<i32, Meter> = one_meter * 10;
@@ -191,8 +224,8 @@ impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
     /// Multiply two measures
     ///
     /// ```
-    /// use yaioum::*;
-    /// use yaioum::si::*;
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
     /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = two_meters * two_meters;
@@ -213,8 +246,8 @@ impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
     /// Divide two measures
     ///
     /// ```
-    /// use yaioum::*;
-    /// use yaioum::si::*;
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
     /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = Measure::new(4);
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
