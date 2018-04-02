@@ -22,16 +22,13 @@ use rustc_driver::*;
 
 
 fn typeck_tables_of<'a, 'tcx>(ctx: TyCtxt<'a, 'tcx, 'tcx>, id: DefId) -> &'tcx TypeckTables<'tcx> {
-    debug!(target: "dim_analyzer", "typeck_tables_of {:?}", id);
-    eprintln!("driver: typeck_tables_of {:?}", id);
-
     // First, run regular type inference, i.e. the default Providers.typeck_tables_of(ctx, id).
     let mut providers = rustc::ty::maps::Providers::default();
     rustc_driver::driver::default_provide(&mut providers);
     let tables = (providers.typeck_tables_of)(ctx, id);
 
     // FIXME: Now, run dimensional analysis
-    let mut analyzer = dimanalysis::DimAnalyzer::new(tables);
+    let mut analyzer = dimanalysis::DimAnalyzer::new(ctx, tables, id);
     analyzer.analyze();
 
     tables
@@ -70,7 +67,7 @@ impl<'a> rustc_driver::CompilerCalls<'a> for Callbacks {
         let provide : Box<for<'r, 's> std::ops::Fn(&'r mut rustc::ty::maps::Providers<'s>)> = Box::new(move |providers| {
             eprintln!("driver: substituting typeck_tables_of");
             old_provide(providers);
-            // FIXME: There doesn't seem to be any good way to save the old `typeck_tables_of` provider,
+            // There doesn't seem to be any good way to save the old `typeck_tables_of` provider,
             // so we'll just call it manually from our own `typeck_tables_of`.
             providers.typeck_tables_of = typeck_tables_of;
         });
@@ -124,7 +121,6 @@ pub fn main() {
             .chain(Some(sys_root))
             .collect()
     };
-    eprintln!("driver: {:?}", args);
 
     let mut callbacks = Callbacks::new();
     rustc_driver::run(move || {

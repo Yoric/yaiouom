@@ -14,6 +14,7 @@ pub trait Unit {
 }
 
 /// A value with a unit.
+#[rustc_yaiouom_check_unify_measure]
 pub struct Measure<T, U: Unit> {
     value: T,
     unit: PhantomData<U>,
@@ -94,7 +95,7 @@ impl<T, U: Unit> Measure<T, U> {
     }
 
     /// Convert between two value representations (e.g. `u32` vs `u64`)
-    /// In the same unit.
+    /// in the same unit.
     ///
     /// Ideally, this should be an implementation of `From`, but it conflicts
     /// with the reflexive implementation.
@@ -258,6 +259,27 @@ impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
     fn div(self, rhs: Measure<T, V>) -> Self::Output {
         Measure {
             value: self.value / rhs.value,
+            unit: PhantomData,
+        }
+    }
+}
+
+
+impl<T, U: Unit> std::ops::Div<T> for Measure<T, U> where T: std::ops::Div<T> {
+    type Output = Measure<<T as std::ops::Div>::Output, U>;
+    /// Divide a dimensionless value by a measure.
+    ///
+    /// ```
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
+    ///
+    /// let ten_meters : Measure<i32, Meter> = Measure::new(10);
+    /// let one_meter : Measure<i32, Meter> = ten_meters / 10;
+    /// assert_eq!(ten_meters.as_ref(), &1);
+    /// ```
+    fn div(self, rhs: T) -> Self::Output {
+        Measure {
+            value: self.value / rhs,
             unit: PhantomData,
         }
     }
