@@ -259,7 +259,7 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
             visitor.visit_body(body);
             eprintln!("dim_analyzer: I gathered the following constraints: {:?}", visitor.constraints);
             if visitor.constraints.len() != 0 {
-                panic!("dim_analyzer: I don't know how to solve the following constraints (yet) {:?}", visitor.constraints);
+                eprintln!("********************\ndim_analyzer: I don't know how to solve the following constraints (yet) {:?}\n**************", visitor.constraints);
             }
         } else {
             panic!("dim_analyzer: I don't know what to do with this");
