@@ -11,6 +11,7 @@ pub trait Unit {
     fn new<T>(value: T) -> Measure<T, Self> where Self: Sized {
         Measure::new(value)
     }
+    fn name() -> String;
 }
 
 /// A value with a unit.
@@ -24,29 +25,6 @@ pub struct Measure<T, U: Unit> {
 ///
 /// This trait constitutes a proof obligation for the type-checker.
 pub trait Dimensionless: Unit + private::Sealed {}
-
-/// The type-level product of two units of measure.
-///
-/// This trait constitutes a proof obligation for the type-checker.
-///
-/// This trait is special, insofar as the type-checker ensures
-/// that it can only be implemented by the type combinators
-/// defined below.
-pub trait Mul: Unit + private::Sealed where Self::Left: Unit, Self::Right: Unit {
-    type Left;
-    type Right;
-}
-
-/// The type-level product of two units of measure.
-///
-/// This trait constitutes a proof obligation for the type-checker.
-///
-/// This trait is special, insofar as the type-checker ensures
-/// that it can only be implemented by the type combinators
-/// defined below.
-pub trait Inv: Unit + private::Sealed where Self::Inner: Unit {
-    type Inner;
-}
 
 
 impl<T, U: Unit> Measure<T, U> {
@@ -141,7 +119,6 @@ impl<T, U: Unit> AsRef<T> for Measure<T, U> {
     }
 }
 
-//#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 impl<T, U: Unit> Clone for Measure<T, U> where T: Clone {
     fn clone(&self) -> Self {
         Self {
@@ -305,5 +282,11 @@ impl<T, U: Unit> std::iter::Product for Measure<T, U> where T: std::iter::Produc
             value: product,
             unit: PhantomData,
         }
+    }
+}
+
+impl<T, U: Unit> std::fmt::Debug for Measure<T, U> where T: std::fmt::Debug {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}{}", self.value, U::name())
     }
 }
