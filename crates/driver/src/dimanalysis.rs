@@ -1,6 +1,7 @@
 use rustc::hir;
 use rustc::hir::def_id::DefId;
 use rustc::hir::intravisit::{ self, NestedVisitorMap, Visitor };
+use rustc::ty;
 use rustc::ty::subst;
 use rustc::ty::{ Ty, TypeckTables, TypeVariants, TyCtxt };
 
@@ -82,7 +83,8 @@ fn primary_body_of<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
 
 struct UnitConstraints<'v, 'tcx: 'v> {
     tcx: TyCtxt<'v, 'tcx, 'tcx>,
-    dimensions: HashMap<&'v TypeVariants<'tcx>, (HashSet<Span>, i32)>,
+    dimensions: HashMap<Ty<'tcx>, (HashSet<Span>, i32)>,
+    def_id: DefId,
 }
 impl<'v, 'tcx> std::fmt::Debug for UnitConstraints<'v, 'tcx> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
@@ -91,52 +93,50 @@ impl<'v, 'tcx> std::fmt::Debug for UnitConstraints<'v, 'tcx> {
 }
 
 impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
-    fn from(tcx: TyCtxt<'v, 'tcx, 'tcx>, ty: &'v TypeVariants<'tcx>) -> Self {
-        eprintln!("dim_analyzser: UnitConstraints::from {:?}", ty);
-        let mut me = Self {
+    fn from(tcx: TyCtxt<'v, 'tcx, 'tcx>, def_id: DefId) -> Self {
+        Self {
             tcx,
+            def_id,
             dimensions: HashMap::new(),
-        };
-        me.add(ty, true);
-        me
+        }
     }
-    fn add_one(&mut self, ty: &'v TypeVariants<'tcx>, span: Option<Span>, positive: bool) {
+    fn add_one(&mut self, ty: Ty<'tcx>, span: Span, positive: bool) {
         let known = self.dimensions.entry(&ty)
             .or_insert_with(|| (HashSet::new(), 0));
-        if let Some(span) = span {
-            known.0.insert(span);
-        }
+        known.0.insert(span);
         if positive {
             known.1 += 1;
         } else {
             known.1 -= 1;
         }
     }
-    fn add(&mut self, ty: &'v TypeVariants<'tcx>, positive: bool) {
-        match *ty {
-            TypeVariants::TyAdt(def, subst) => {
+    fn add(&mut self, ty: Ty<'tcx>, positive: bool) {
+        match ty.sty {
+            ty::TyAdt(def, subst) => {
                 eprintln!("dim_analyzer: add ({positive}) {:?} with {:?}", def.did, subst,
                     positive = if positive { "{+}" } else { "{-}" } );
+                let span = self.tcx.def_span(def.did).clone();
                 if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_MUL) {
                     eprintln!("dim_analyzer: it's `*`");
                     for item in subst.types() {
-                        self.add(&item.sty, positive);
+                        self.add(&item, positive);
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_INV) {
                     eprintln!("dim_analyzer: it's `^-1`");
                     for item in subst.types() {
-                        self.add(&item.sty, !positive);
+                        self.add(&item, !positive);
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_DIMENSIONLESS) {
                     eprintln!("dim_analyzer: it's `1` -- nothing to do");
                 } else {
-                    let span = Some(self.tcx.def_span(def.did).clone());
                     self.add_one(&ty, span, positive);
                 }
             }
-            TypeVariants::TyParam(_) => {
-                // FIXME: Try to find a Span for this param.
-                self.add_one(&ty, None, positive);
+            ty::TyParam(param) => {
+                let generics = self.tcx.generics_of(self.def_id);
+                let def = generics.type_param(&param, self.tcx);
+                let span = self.tcx.def_span(def.def_id);
+                self.add_one(&ty, span, positive);
             }
             _ => panic!("Unknown ty {:?}", ty)
         }
@@ -156,13 +156,15 @@ struct GatherConstraintsVisitor<'v, 'tcx: 'v> {
     tcx: TyCtxt<'v, 'tcx, 'tcx>,
     tables: &'tcx TypeckTables<'tcx>,
     constraints: Vec<UnitConstraints<'v, 'tcx>>,
+    def_id: DefId,
 }
 impl<'v, 'tcx> GatherConstraintsVisitor<'v, 'tcx> {
     fn add_unification(&mut self, span: Span, left: Ty<'tcx>, right: Ty<'tcx>) {
         eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
 
-        let mut constraint = UnitConstraints::from(self.tcx, &left.sty);
-        constraint.add(&right.sty, false);
+        let mut constraint = UnitConstraints::from(self.tcx, self.def_id);
+        constraint.add(&left, true);
+        constraint.add(&right, false);
         constraint.simplify();
         if constraint.len() != 0 {
             self.constraints.push(constraint)
@@ -252,6 +254,7 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
                 tcx: self.tcx,
                 tables: self.tables,
                 constraints: vec![],
+                def_id: self.def_id,
             };
             visitor.visit_body(body);
             eprintln!("dim_analyzer: I gathered the following constraints: {:?}", visitor.constraints);
