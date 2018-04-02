@@ -2,13 +2,11 @@ use rustc::hir;
 use rustc::hir::def_id::DefId;
 use rustc::hir::intravisit::{ self, NestedVisitorMap, Visitor };
 use rustc::ty;
-use rustc::ty::subst;
-use rustc::ty::{ Ty, TypeckTables, TypeVariants, TyCtxt };
+use rustc::ty::{ Ty, TypeckTables, TyCtxt };
 
 use syntax::ast;
 use syntax::attr;
 use syntax::codemap::Span;
-use syntax::symbol::Symbol;
 
 use std;
 use std::collections::{ HashMap, HashSet };
@@ -159,7 +157,7 @@ struct GatherConstraintsVisitor<'v, 'tcx: 'v> {
     def_id: DefId,
 }
 impl<'v, 'tcx> GatherConstraintsVisitor<'v, 'tcx> {
-    fn add_unification(&mut self, span: Span, left: Ty<'tcx>, right: Ty<'tcx>) {
+    fn add_unification(&mut self, left: Ty<'tcx>, right: Ty<'tcx>) {
         eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
 
         let mut constraint = UnitConstraints::from(self.tcx, self.def_id);
@@ -187,14 +185,13 @@ impl<'v, 'tcx> Visitor<'v> for GatherConstraintsVisitor<'v, 'tcx> {
                 if attr::contains_name(&self.tcx.get_attrs(def_id), YAOIOUM_ATTR_CHECK_UNIFY) {
                     // Ok, this is a call to `unify`.
                     let substs = self.tables.node_substs(expr.hir_id);
-                    let ty = self.tcx.mk_fn_def(def_id, substs);
                     eprintln!("dim_analyzer: Found a call to unify! {:?}", substs);
 
                     // By definition, `unify` has type `<V: Unit>(self: Measure<T, U>) -> Measure<T, V>`.
                     // We now extract `U` and `V`. We don't care about `T`, it has already been checked
                     // by type inference.
                     // FIXME: For the moment, we assume that `substs` is [T, U, V].
-                    self.add_unification(expr.span, substs.type_at(1), substs.type_at(2));
+                    self.add_unification(substs.type_at(1), substs.type_at(2));
                 }
             }
             // eddyb: Yoric: for everything else (i.e. calling Foo::unify(...)) you just need to look at ExprPath and check that its (unadjusted!) type is TyFnDef (which gives you the def_id)
@@ -248,7 +245,7 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
         let param_env = self.tcx.param_env(self.def_id);
         eprintln!("dim_analyzer: params {:?}", param_env);
 
-        if let Some(decl) = fn_decl {
+        if let Some(_) = fn_decl {
             eprintln!("dim_analyzer: This is a function declaration");
             let mut visitor = GatherConstraintsVisitor {
                 tcx: self.tcx,
@@ -259,15 +256,13 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
             visitor.visit_body(body);
             eprintln!("dim_analyzer: I gathered the following constraints: {:?}", visitor.constraints);
             if visitor.constraints.len() != 0 {
-                eprintln!("********************\ndim_analyzer: I don't know how to solve the following constraints (yet) {:?}\n**************", visitor.constraints);
+                eprintln!("{fill}dim_analyzer: I don't know how to solve the following constraints (yet) {:?}\n{fill}",
+                    visitor.constraints,
+                    fill = "\n\n**********************************\n\n");
             }
         } else {
             panic!("dim_analyzer: I don't know what to do with this");
         }
-//        let foo: &usize = &self.ctx.hir;
-
-        // TypeckTables::node_substs,
-        // TyCtxt::get_attrs(self, did: DefId) -> Attributes<'gcx>
     }
 }
 

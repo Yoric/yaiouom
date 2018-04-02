@@ -284,3 +284,26 @@ impl<T, U: Unit> std::ops::Div<T> for Measure<T, U> where T: std::ops::Div<T> {
         }
     }
 }
+
+impl<T, U: Unit> std::iter::Sum for Measure<T, U> where T: std::iter::Sum {
+    fn sum<I: std::iter::Iterator<Item = Self>>(iter: I) -> Self {
+        let sum = iter.map(|m| m.value)
+            .sum();
+        Measure {
+            value: sum,
+            unit: PhantomData,
+        }
+    }
+}
+
+
+impl<T, U: Unit> std::iter::Product for Measure<T, U> where T: std::iter::Product {
+    fn product<I: std::iter::Iterator<Item = Self>>(iter: I) -> Self {
+        let product = iter.map(|m| m.value)
+            .product();
+        Measure {
+            value: product,
+            unit: PhantomData,
+        }
+    }
+}

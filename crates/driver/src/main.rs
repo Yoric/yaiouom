@@ -2,8 +2,6 @@
 
 extern crate getopts;
 
-#[macro_use]
-extern crate log;
 extern crate rustc;
 extern crate rustc_driver;
 extern crate rustc_errors;
