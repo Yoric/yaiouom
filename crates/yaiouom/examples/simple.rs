@@ -39,13 +39,14 @@ fn get_speed_generic<A: Distance, B: Duration>(distance: Measure<f64, A>, durati
     return (distance / duration).unify();
 }
 
+/*
 // The following has too many generics, Rust can't infer it out of the box.
 fn get_speed_generic_2<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
     return (distance / duration)
         .unify()
         .unify();
 }
-
+*/
 // The same one, with annotations. Should build with Rust and yaiouom-driver.
 fn get_speed_generic_2_annotated<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
     let a : Measure<_, Mul<A, Inv<B>>> = (distance / duration)
@@ -83,20 +84,22 @@ fn get_speed_alias(distance: Measure<f64, MeterAlias>, duration: Measure<f64, Se
     return ((Dimensionless::new(1.) / duration) * distance ).unify();
 }
 
-struct Foo<T> where T: std::ops::Div<T> {
+struct Foo<T> where T: std::ops::Div<T> + Copy {
     distance: Measure<T, Meter>,
     duration: Measure<T, Second>
 }
-impl<T> Foo<T> where T: std::ops::Div<T> {
+impl<T> Foo<T> where T: std::ops::Div<T> + Copy {
     fn get_speed(&self) -> Measure<T::Output, Mul<Meter, Inv<Second>>> {
         self.distance / self.duration
     }
     fn get_speed_2(&self) -> Measure<T::Output, Mul<Inv<Second>, Meter>> {
         (self.distance / self.duration).unify()
     }
+/*
     fn get_speed_bad(&self) -> Measure<T::Output, Mul<Kilometer, Inv<Second>>> {
         self.distance / self.duration
     }
+*/
     fn get_speed_bad_unify(&self) -> Measure<T::Output, Mul<Kilometer, Inv<Second>>> {
         (self.distance / self.duration).unify()
     }
@@ -108,4 +111,6 @@ fn main() {
     let speed_1 = get_speed(distance, duration);
     let speed_2 = get_speed_2(distance, duration);
     print!("Speed: {} / {}", speed_1.as_ref(), speed_2.as_ref());
+
+    let bad_speed = get_speed_bad(Kilometer::new(10.), Second::new(100.));
 }

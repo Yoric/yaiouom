@@ -17,6 +17,148 @@ units of measure without converting them first). However,
 before using this crate, please read the rest of these
 explanations.
 
+# Example
+
+The following computes a speed in f64 m * s^-1
+
+```rust
+extern crate yaiouom;
+
+use yaiouom::*;
+use yaiouom::si::*;
+
+// The following builds unsafely with Rust, then yaiouom-checker ensures the safety of `unify`.
+fn get_speed(distance: Measure<f64, Meter>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Meter, Inv<Second>>> {
+    return (distance / duration).unify();
+}
+
+fn main() {
+    let distance = Meter::new(100.);
+    let duration = Second::new(25.);
+    let speed = get_speed(distance, duration);
+}
+```
+
+If you're curious about the comment and this call to `unify`, you should really
+look at the documentation of [`unify`](https://yoric.github.io/yaiouom/yaiouom/struct.Measure.html#method.unify) :)
+
+Note that multiplication is commutative, so this is equivalent to
+the following (we change the result of the function).
+
+
+```rust
+extern crate yaiouom;
+
+use yaiouom::*;
+use yaiouom::si::*;
+
+// The following builds unsafely with Rust, then yaiouom-checker ensures the safety of `unify`.
+fn get_speed(distance: Measure<f64, Meter>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Inv<Second>, Meter>> {
+    return (distance / duration).unify();
+}
+```
+
+or even to the following (we have changed the type of `distance`)
+
+```rust
+extern crate yaiouom;
+
+use yaiouom::*;
+use yaiouom::si::*;
+
+// The following builds unsafely with Rust, then yaiouom-checker ensures the safety of `unify`.
+fn get_speed(distance: Measure<f64, Mul<Second, Mul<Meter, Inv<Second>>>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Inv<Second>, Meter>> {
+    return (distance / duration).unify();
+}
+```
+
+Or, if you wish to be more generic,
+
+```rust
+extern crate yaiouom;
+
+use yaiouom::*;
+use yaiouom::si::*;
+
+
+trait Distance: Unit {}
+trait Duration: Unit {}
+
+// The following builds unsafely with Rust, then yaiouom-checker ensures the safety of `unify`.
+fn get_speed_generic<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
+    return (distance / duration).unify();
+}
+```
+
+Or, if you wish to be even more generic,
+
+```rust
+extern crate yaiouom;
+
+use std;
+
+use yaiouom::*;
+use yaiouom::si::*;
+
+
+trait Distance: Unit {}
+trait Duration: Unit {}
+
+// The following builds unsafely with Rust, then yaiouom-checker ensures the safety of `unify`.
+fn get_speed_generic<A, B, T>(distance: Measure<T, A>, duration: Measure<T, B>) -> Measure<T::Output, Mul<A, Inv<B>>>
+    where A: Distance,
+          B: Duration,
+          T: std::ops::Mul<T>
+{
+    return (distance / duration).unify();
+}
+```
+
+You can easily add new units of measure:
+
+```rust
+struct Kilometer;
+impl BaseUnit for Kilometer {
+    const NAME: &'static str = "km";
+}
+
+fn get_speed_km(distance: Measure<f64, Kilometer>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Kilometer, Inv<Second>>> {
+    return (distance / duration).unify();
+}
+```
+
+On the other hand, if you attempt to write a program that misuses units of measure,
+the companion **linter** will inform you of your error:
+
+
+```rust
+struct Kilometer;
+impl BaseUnit for Kilometer {
+    const NAME: &'static str = "km";
+}
+
+fn get_speed_bad_unify(distance: Measure<f64, Kilometer>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Meter, Inv<Second>>> {
+    return (distance / duration).unify();
+}
+
+// 69 | / fn get_speed_bad(distance: Measure<f64, Kilometer>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Meter, Inv<Second>>> {
+// 70 | |     return ((Dimensionless::new(1.) / duration) * distance ).unify();
+//    | |            --------------------------------------------------------- in this unification
+// 71 | | }
+//    | |_^ While examining this function
+//    |
+//    = note: expected unit of measure: `Kilometer`
+//               found unit of measure: `yaiouom::si::Meter`
+```
+
+Or, if for some reason you decide to run the code without the linter,
+
+
+```
+thread 'main' panicked at 'assertion failed: `(left == right)`
+  left: `km * s^-1`,
+ right: `m * s^-1`', src/unit.rs:158:9
+```
 
 # Unification and the companion linter
 
@@ -82,3 +224,9 @@ the difference between two dates in seconds is a duration in seconds.
 The difference between two ºC temperatures is a value that may be
 multiplied or divided. We do not attempt to differentiate between
 these things.
+
+# Credits
+
+While this refinement type is much simpler (and more limited)
+than the original, it draws heavy inspiration from F#'s type
+system.
