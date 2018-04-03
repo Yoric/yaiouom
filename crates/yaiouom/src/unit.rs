@@ -1,5 +1,4 @@
 use private;
-pub use logics::{ PDimensionless, PInv, PMul };
 
 use std;
 use std::any::*;
@@ -10,6 +9,10 @@ use itertools::Itertools;
 
 /// A base unit of measure (e.g. meters, euros, ...)
 pub trait BaseUnit: Any {
+    /// The human-readable name of the unit, e.g. `"m"`
+    /// `"s"`, `"EUR"`, etc.
+    ///
+    /// Used mainly for debugging purposes.
     const NAME: &'static str;
 }
 impl<T: BaseUnit> private::Sealed for T {}
@@ -31,6 +34,11 @@ pub trait Unit: private::Sealed {
         runtime
     }
 
+    /// Add a compile-type unit to a dynamic unit, either
+    /// in positive position (if `positive` is `true`)
+    /// or in negative position (if `positive` is `false`).
+    ///
+    /// Used internally by `as_runtime`, not particularly interesting otherwise.
     fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool);
 }
 impl<T: BaseUnit> Unit for T {
@@ -82,18 +90,66 @@ impl<T, U: Unit> Measure<T, U> {
         }
     }
 
-    /// Unify two measures.
+    /// Compare two units of measure (**not** their values).
     ///
-    /// # Warning
+    /// Out of the box, the Rust type system is not powerful enough to resolve
+    /// general equality between two units of measure. So, for instance, it
+    /// will not realize that `m * s` and `s * m` are the same unit, or that
+    /// `m / m` is the same as the dimensionless unit.
     ///
-    /// With out-of-the-box Rust, this method is unsafe wrt units of measure.
-    /// The companion linter is necessary to check that the call to `unify`
-    /// is safe.
+    /// For instance, the following will fail to type:
     ///
-    /// # Future
+    /// ```compile_fail
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
     ///
-    /// For a future version, we may introduce a dynamically typed implementation
-    /// of `unify`, for users of vanilla Rust in debug mode.
+    /// let one_meter = Meter::new(1);
+    /// let one_second = Second::new(1);
+    ///
+    /// let a = one_meter * one_second;
+    /// let b = one_second * one_meter;
+    /// assert_eq!(a, b);
+    /// // ^^^^^^^^^^^^^^^^^ expected struct `Meter`, found struct `Second`
+    /// ```
+    ///
+    /// To work around this, use `unify()`, as follows:
+    ///
+    /// ```
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
+    ///
+    /// let one_meter = Meter::new(1);
+    /// let one_second = Second::new(1);
+    ///
+    /// let a = one_meter * one_second;
+    /// let b = (one_second * one_meter).unify(); // Delays unit check.
+    /// assert_eq!(a, b);
+    /// ```
+    ///
+    /// # Soundness of `unify`
+    ///
+    /// If you look at the signature of `unify`, you can notice that
+    /// it returns a `Measure<T, V>` for all `V`. Despite appearances,
+    /// this is sound, for two reasons:
+    ///
+    ///
+    /// ## A refinement type for units of measure
+    ///
+    /// The companion linter for this crate implements a refinement of
+    /// the Rust type system dedicated to units of measure. What this
+    /// means, in practice, is that whenever you call `foo.unify()`,
+    /// it will check that the returned type is correct. By opposition
+    /// to the general Rust type system, it will correctly realize that
+    /// `m * s` and `s * m` are the same, or even that `W * m / W` is
+    /// `m`, even if `Wß` is a type variable.
+    ///
+    /// Please don't use `unify()` without the linter :)
+    ///
+    ///
+    /// ## Dynamic checks
+    ///
+    /// As a fallback, **in debug builds**, each call to `unify` will panic
+    /// if type `V` is not equivalent ot type `U`.
     #[allow(unused_attributes)]
     #[rustc_yaiouom_check_unify]
     pub fn unify<V: Unit>(self) -> Measure<T, V> {
@@ -145,6 +201,10 @@ impl<T, U: Unit> Measure<T, U> {
         }
     }
 
+    /// Extract a runtime representation of a unit.
+    ///
+    /// This runtime representation is designed mainly for debugging purposes.
+    ///
     /// ```
     /// use yaiouom::*;
     /// use yaiouom::si::*;
@@ -152,6 +212,10 @@ impl<T, U: Unit> Measure<T, U> {
     /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
     /// assert_eq!(one_meter_usize.as_runtime().to_string(), "m");
     /// ```
+    ///
+    /// # Performance note
+    ///
+    /// This method is fine for debugging, but should not be used in a tight loop.
     pub fn as_runtime(&self) -> RuntimeUnit {
         U::as_runtime()
     }
@@ -237,12 +301,10 @@ impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U> where T: std::ops::Mul<T> {
     }
 }
 
-// FIXME: We probably want to implement `mul` without `std::ops::Mul`, specify
-// syntactic sugar later.
 impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
     T: std::ops::Mul<T>,
 {
-    type Output = Measure<<T as std::ops::Mul>::Output, PMul<U, V>>;
+    type Output = Measure<<T as std::ops::Mul>::Output, Mul<U, V>>;
     /// Multiply two measures
     ///
     /// ```
@@ -250,7 +312,7 @@ impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
     /// use yaiouom::si::*;
     ///
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
-    /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = two_meters * two_meters;
+    /// let four_sq_meters : Measure<i32, Mul<Meter, Meter>> = two_meters * two_meters;
     /// assert_eq!(four_sq_meters.as_ref(), &4);
     /// ```
     fn mul(self, rhs: Measure<T, V>) -> Self::Output {
@@ -264,14 +326,14 @@ impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
 impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
     T: std::ops::Div<T>,
 {
-    type Output = Measure<<T as std::ops::Div>::Output, PMul<U, PInv<V>>>;
+    type Output = Measure<<T as std::ops::Div>::Output, Mul<U, Inv<V>>>;
     /// Divide two measures
     ///
     /// ```
     /// use yaiouom::*;
     /// use yaiouom::si::*;
     ///
-    /// let four_sq_meters : Measure<i32, PMul<Meter, Meter>> = Measure::new(4);
+    /// let four_sq_meters : Measure<i32, Mul<Meter, Meter>> = Measure::new(4);
     /// let two_meters : Measure<i32, Meter> = Measure::new(2);
     /// let other_two_meters : Measure<i32, _> = four_sq_meters / two_meters;
     ///
@@ -364,12 +426,22 @@ impl RuntimeUnit {
     /// use yaiouom::*;
     /// use yaiouom::si::*;
     ///
-    /// let unit_str = PMul::<Meter, PInv<Second>>::as_runtime().to_string();
+    /// let unit_str = Mul::<Meter, Inv<Second>>::as_runtime().to_string();
     /// assert_eq!(&unit_str, "m * s^-1");
     ///
-    /// let unit_str_2 = PMul::<PInv<Second>, Meter>::as_runtime().to_string();
+    /// let unit_str_2 = Mul::<Inv<Second>, Meter>::as_runtime().to_string();
     /// assert_eq!(&unit_str_2, "m * s^-1");
+    ///
+    /// let unit_str_3 = Mul::<Inv<Second>, Mul<Inv<Second>, Meter>>::as_runtime().to_string();
+    /// assert_eq!(&unit_str_3, "m * s^-2");
+    ///
+    /// let unit_str_4 = Mul::<Inv<Ampere>, Mul<Inv<Second>, Meter>>::as_runtime().to_string();
+    /// assert!(["m * s^-1 * A^-1", "m * A^-1 * s^-1"].iter().any(|x| *x == &unit_str_4));
     /// ```
+    ///
+    /// # Performance note
+    ///
+    /// This method is fine for debugging, but should not be used in a tight loop.
     pub fn to_string(&self) -> String {
         // First display the positive values.
         let positives = self.dimensions.values()
@@ -390,3 +462,65 @@ impl RuntimeUnit {
             .format(" * "))
     }
 }
+
+/// A unit without dimension.
+#[rustc_yaiouom_combinator_dimensionless]
+pub struct Dimensionless;
+impl Unit for Dimensionless {
+    fn add_to_runtime(_: &mut RuntimeUnit, _: bool) {
+        // Nothing to do.
+    }
+}
+impl private::Sealed for Dimensionless {}
+impl<T> From<T> for Measure<T, Dimensionless> {
+    fn from(value: T) -> Self {
+        Self {
+            value,
+            unit: PhantomData,
+        }
+    }
+}
+impl<T> Measure<T, Dimensionless> {
+    fn unwrap(self) -> T {
+        self.value
+    }
+}
+
+/// The product of two units of measure.
+///
+/// Note that Rust's type system is not powerful enough
+/// to automatically realize that `Mul<A, B> == Mul<B, A>`.
+///
+/// See the documentation of [unify](struct.Measure.html#method.unify) for details
+/// on how to work around this limitation.
+#[rustc_yaiouom_combinator_mul]
+pub struct Mul<A, B> where A: Unit, B: Unit {
+    left: PhantomData<A>,
+    right: PhantomData<B>,
+}
+impl<A: Unit, B: Unit> private::Sealed for Mul<A, B> { }
+impl<A: Unit, B: Unit> Unit for Mul<A, B> {
+    fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
+        A::add_to_runtime(repr, positive);
+        B::add_to_runtime(repr, positive);
+    }
+}
+
+/// The inverse of a unit of measure.
+///
+/// Note that Rust's type system is not powerful enough
+/// to automatically realize that `Mul<A, Inv<A>> == Dimensionless`.
+///
+/// See the documentation of [unify](struct.Measure.html#method.unify) for details
+/// on how to work around this limitation.
+#[rustc_yaiouom_combinator_inv]
+pub struct Inv<A> where A: Unit {
+    inner: PhantomData<A>
+}
+impl<A: Unit> private::Sealed for Inv<A> { }
+impl<A: Unit> Unit for Inv<A> {
+    fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
+        A::add_to_runtime(repr, !positive);
+    }
+}
+

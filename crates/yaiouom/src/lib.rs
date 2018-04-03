@@ -15,8 +15,6 @@ mod private {
     pub trait Sealed {}
 }
 
-pub mod logics;
-
 mod unit;
 pub use unit::*;
 
