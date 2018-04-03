@@ -72,6 +72,7 @@ impl<'a> rustc_driver::CompilerCalls<'a> for Callbacks {
 }
 
 pub fn main() {
+    // The following is copied straight from Clippy.
     let sys_root = option_env!("SYSROOT")
         .map(String::from)
         .or_else(|| std::env::var("SYSROOT").ok())

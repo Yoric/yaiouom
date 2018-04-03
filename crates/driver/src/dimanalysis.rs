@@ -164,35 +164,45 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
             known.1 -= 1;
         }
     }
-    fn add(&mut self, ty: Ty<'tcx>, positive: bool) {
+
+    /// Add a type involved in a unit-of-measure level unification.
+    fn add(&mut self, ty: Ty<'tcx>, positive: bool) -> Result<(), ()> {
         match ty.sty {
             ty::TyAdt(def, subst) => {
-                // eprintln!("dim_analyzer: add ({positive}) {:?} with {:?}", def.did, subst,
-                //    positive = if positive { "{+}" } else { "{-}" } );
+                // A constructor `Foo<A, B, C...>`.
+                //
+                // Since we are in a unit-of-measure unification, `Foo` could be
+                // `Mul`, `Inv`, `Dimensionless` (in which case they are handled
+                // as operators) or any other type (in which case they are handled
+                // as base units).
                 let span = self.tcx.def_span(def.did).clone();
                 if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_MUL) {
-                    // eprintln!("dim_analyzer: it's `*`");
                     for item in subst.types() {
-                        self.add(&item, positive);
+                        self.add(&item, positive)?;
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_INV) {
-                    // eprintln!("dim_analyzer: it's `^-1`");
                     for item in subst.types() {
-                        self.add(&item, !positive);
+                        self.add(&item, !positive)?;
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_DIMENSIONLESS) {
-                    // eprintln!("dim_analyzer: it's `1` -- nothing to do");
+                    // Nothing to do.
                 } else {
                     self.add_one(&ty, span, positive);
                 }
+                Ok(())
             }
             ty::TyParam(param) => {
                 let generics = self.tcx.generics_of(self.def_id);
                 let def = generics.type_param(&param, self.tcx);
                 let span = self.tcx.def_span(def.def_id);
                 self.add_one(&ty, span, positive);
+                Ok(())
             }
-            _ => panic!("Unknown ty {:?}", ty)
+            ty::TyError => {
+                // There's already a type error, skipping.
+                Err(())
+            }
+            _ => panic!("I shouldn't have received ty {:?}", ty)
         }
     }
 
@@ -217,8 +227,14 @@ impl<'v, 'tcx> GatherConstraintsVisitor<'v, 'tcx> {
         // eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
 
         let mut constraint = UnitConstraints::from(self.tcx, span, self.def_id);
-        constraint.add(&left, true);
-        constraint.add(&right, false);
+        if constraint.add(&left, true).is_err() {
+            // Don't pile up constraints on top of existing errors.
+            return;
+        }
+        if constraint.add(&right, false).is_err() {
+            // Don't pile up constraints on top of existing errors.
+            return;
+        }
         constraint.simplify();
         if constraint.len() != 0 {
             self.constraints.push(constraint)
