@@ -39,14 +39,6 @@ fn get_speed_generic<A: Distance, B: Duration>(distance: Measure<f64, A>, durati
     return (distance / duration).unify();
 }
 
-/*
-// The following has too many generics, Rust can't infer it out of the box.
-fn get_speed_generic_2<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
-    return (distance / duration)
-        .unify()
-        .unify();
-}
-*/
 // The same one, with annotations. Should build with Rust and yaiouom-driver.
 fn get_speed_generic_2_annotated<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
     let a : Measure<_, Mul<A, Inv<B>>> = (distance / duration)
@@ -59,22 +51,6 @@ fn get_speed_generic_2_annotated<A: Distance, B: Duration>(distance: Measure<f64
 fn get_speed_generic_2_annotated_2<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
     (distance / duration)
         .unify::<Mul<A, Inv<B>>>()
-        .unify()
-}
-
-// The following should compile with Rust but fail with the linter.
-struct Kilometer;
-impl BaseUnit for Kilometer {
-    const NAME: &'static str = "km";
-}
-fn get_speed_bad(distance: Measure<f64, Kilometer>, duration: Measure<f64, Second>) -> Measure<f64, Mul<Meter, Inv<Second>>> {
-    return ((Dimensionless::new(1.) / duration) * distance ).unify();
-}
-
-// The same as get_speed_generic_2_annotated_2, but with bad annotations.
-fn get_speed_generic_2_annotated_2_bad<A: Distance, B: Duration>(distance: Measure<f64, A>, duration: Measure<f64, B>) -> Measure<f64, Mul<A, Inv<B>>> {
-    (distance / duration)
-        .unify::<Mul<A, Inv<Second>>>()
         .unify()
 }
 
@@ -95,22 +71,9 @@ impl<T> Foo<T> where T: std::ops::Div<T> + Copy {
     fn get_speed_2(&self) -> Measure<T::Output, Mul<Inv<Second>, Meter>> {
         (self.distance / self.duration).unify()
     }
-/*
-    fn get_speed_bad(&self) -> Measure<T::Output, Mul<Kilometer, Inv<Second>>> {
-        self.distance / self.duration
-    }
-*/
-    fn get_speed_bad_unify(&self) -> Measure<T::Output, Mul<Kilometer, Inv<Second>>> {
-        (self.distance / self.duration).unify()
-    }
 }
 
-fn main() {
-    let distance = Meter::new(10.);
-    let duration = Second::new(100.);
-    let speed_1 = get_speed(distance, duration);
-    let speed_2 = get_speed_2(distance, duration);
-    print!("Speed: {} / {}", speed_1.as_ref(), speed_2.as_ref());
 
-    let bad_speed = get_speed_bad(Kilometer::new(10.), Second::new(100.));
+fn main() {
+    // We just want to check that everything compiles.
 }

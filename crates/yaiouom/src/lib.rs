@@ -86,6 +86,7 @@
 //! these things.
 
 extern crate itertools;
+extern crate num_traits;
 
 /// Seal mechanism, to ensure that we cannot implement private traits
 /// from outside this module.

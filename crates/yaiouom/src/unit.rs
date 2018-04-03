@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use itertools::Itertools;
+use num_traits;
 
 /// A base unit of measure (e.g. meters, euros, ...)
 pub trait BaseUnit: Any {
@@ -222,6 +223,27 @@ impl<T, U: Unit> Measure<T, U> {
     }
 }
 
+impl<T, A: Unit> Measure<T, Mul<A, A>> where T: num_traits::float::Float {
+    /// Compute the square root of a value.
+    pub fn sqrt(self) -> Measure<T, A> {
+        Measure {
+            value: self.value.sqrt(),
+            unit: PhantomData,
+        }
+    }
+}
+
+impl<T, U: Unit> num_traits::ops::inv::Inv for Measure<T, U> where T: num_traits::ops::inv::Inv {
+    type Output = Measure<T::Output, Inv<U>>;
+    /// Unary operator for retrieving the multiplicative inverse, or reciprocal, of a value.
+    fn inv(self) -> Self::Output {
+        Measure {
+            value: self.value.inv(),
+            unit: PhantomData,
+        }
+    }
+}
+
 impl<T, U: Unit> AsRef<T> for Measure<T, U> {
     fn as_ref(&self) -> &T {
         &self.value
@@ -256,6 +278,28 @@ impl<T, U: Unit> PartialOrd for Measure<T, U> where T: PartialOrd {
 impl<T, U: Unit> Ord for Measure<T, U> where T: Ord {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         Ord::cmp(&self.value, &other.value)
+    }
+}
+
+impl<T, U: Unit> std::ops::Neg for Measure<T, U> where T: std::ops::Neg {
+    type Output = Measure<T::Output, U>;
+    fn neg(self) -> Self::Output {
+        Measure {
+            value: self.value.neg(),
+            unit: PhantomData,
+        }
+    }
+}
+
+impl<T, U: Unit> num_traits::identities::Zero for Measure<T, U> where T: num_traits::identities::Zero {
+    fn zero() -> Self {
+        Self {
+            value: T::zero(),
+            unit: PhantomData,
+        }
+    }
+    fn is_zero(&self) -> bool {
+        self.value.is_zero()
     }
 }
 
@@ -398,6 +442,11 @@ impl<T, U: Unit> std::fmt::Debug for Measure<T, U> where T: std::fmt::Debug {
     }
 }
 
+/*
+impl<T, U: Unit> num_traits::Float for Measure<T, U> where T: num_traits::Float {
+
+}
+*/
 
 /// Runtime representation of a unit.
 ///
