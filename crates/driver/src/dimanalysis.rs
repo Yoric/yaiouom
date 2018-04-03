@@ -81,19 +81,22 @@ fn primary_body_of<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>,
 
 struct UnitConstraints<'v, 'tcx: 'v> {
     tcx: TyCtxt<'v, 'tcx, 'tcx>,
-    dimensions: HashMap<Ty<'tcx>, (HashSet<Span>, i32)>,
+    left:  HashMap<Ty<'tcx>, (HashSet<Span>, i32)>,
+    right: HashMap<Ty<'tcx>, (HashSet<Span>, i32)>,
     def_id: DefId,
     span: Span,
 }
 impl<'v, 'tcx> std::fmt::Debug for UnitConstraints<'v, 'tcx> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
-        self.dimensions.fmt(formatter)
+        write!(formatter, "{:?}/{:?}", self.left, self.right)
     }
 }
-impl<'v, 'tcx> std::fmt::Display for UnitConstraints<'v, 'tcx> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
+    fn describe(&self, left: bool) -> String {
+        let mut buf = String::new();
         let mut first = true;
-        for (ref ty, &(_, ref number)) in &self.dimensions {
+        let table = if left { &self.left } else  { &self.right };
+        for (ref ty, &(_, ref number)) in table {
             let name = match ty.sty {
                 ty::TyAdt(ref def, _) =>
                     self.tcx.item_path_str(def.did),
@@ -110,52 +113,31 @@ impl<'v, 'tcx> std::fmt::Display for UnitConstraints<'v, 'tcx> {
                 } else {
                     format!("^{}", number)
                 };
-            write!(formatter, "{mul}{name}{exp}",
+            buf.push_str(&format!("{mul}{name}{exp}",
                 mul = if first { "" } else { " * " },
                 name = name,
-                exp = exp)?;
+                exp = exp));
             if first {
                 first = false;
             }
         }
-        Ok(())
+        buf
     }
 }
 
 impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
-    fn split(mut self) -> (Self, Self) {
-        let mut numerator = Self {
-            tcx: self.tcx,
-            def_id: self.def_id,
-            dimensions: HashMap::new(),
-            span: self.span,
-        };
-        let mut denominator = Self {
-            tcx: self.tcx,
-            def_id: self.def_id,
-            dimensions: HashMap::new(),
-            span: self.span,
-        };
-        for (key, mut value) in self.dimensions.drain() {
-            if value.1 > 0 {
-                numerator.dimensions.insert(key, value);
-            } else {
-                value.1 = -value.1;
-                denominator.dimensions.insert(key, value);
-            }
-        }
-        (numerator, denominator)
-    }
     fn from(tcx: TyCtxt<'v, 'tcx, 'tcx>, span: Span, def_id: DefId) -> Self {
         Self {
             tcx,
             def_id,
-            dimensions: HashMap::new(),
+            left:  HashMap::new(),
+            right: HashMap::new(),
             span,
         }
     }
-    fn add_one(&mut self, ty: Ty<'tcx>, span: Span, positive: bool) {
-        let known = self.dimensions.entry(&ty)
+    fn add_one(&mut self, ty: Ty<'tcx>, span: Span, left: bool, positive: bool) {
+        let table = if left { &mut self.left } else { &mut self.right };
+        let known = table.entry(&ty)
             .or_insert_with(|| (HashSet::new(), 0));
         known.0.insert(span);
         if positive {
@@ -166,7 +148,7 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
     }
 
     /// Add a type involved in a unit-of-measure level unification.
-    fn add(&mut self, ty: Ty<'tcx>, positive: bool) -> Result<(), ()> {
+    fn add(&mut self, ty: Ty<'tcx>, left: bool, positive: bool) -> Result<(), ()> {
         match ty.sty {
             ty::TyAdt(def, subst) => {
                 // A constructor `Foo<A, B, C...>`.
@@ -178,16 +160,16 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
                 let span = self.tcx.def_span(def.did).clone();
                 if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_MUL) {
                     for item in subst.types() {
-                        self.add(&item, positive)?;
+                        self.add(&item, left, positive)?;
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_INV) {
                     for item in subst.types() {
-                        self.add(&item, !positive)?;
+                        self.add(&item, left, !positive)?;
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_DIMENSIONLESS) {
                     // Nothing to do.
                 } else {
-                    self.add_one(&ty, span, positive);
+                    self.add_one(&ty, span, left, positive);
                 }
                 Ok(())
             }
@@ -195,7 +177,7 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
                 let generics = self.tcx.generics_of(self.def_id);
                 let def = generics.type_param(&param, self.tcx);
                 let span = self.tcx.def_span(def.def_id);
-                self.add_one(&ty, span, positive);
+                self.add_one(&ty, span, left, positive);
                 Ok(())
             }
             ty::TyError => {
@@ -208,11 +190,8 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
 
     /// Remove everything that has multiplicity 0.
     fn simplify(&mut self) {
-        self.dimensions.retain(|_, v| v.1 != 0);
-    }
-
-    fn len(&self) -> usize {
-        self.dimensions.len()
+        self.left.retain(|_, v| v.1 != 0);
+        self.right.retain(|_, v| v.1 != 0);
     }
 }
 
@@ -227,16 +206,16 @@ impl<'v, 'tcx> GatherConstraintsVisitor<'v, 'tcx> {
         // eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
 
         let mut constraint = UnitConstraints::from(self.tcx, span, self.def_id);
-        if constraint.add(&left, true).is_err() {
+        if constraint.add(&left, true, true).is_err() {
             // Don't pile up constraints on top of existing errors.
             return;
         }
-        if constraint.add(&right, false).is_err() {
+        if constraint.add(&right, false, true).is_err() {
             // Don't pile up constraints on top of existing errors.
             return;
         }
         constraint.simplify();
-        if constraint.len() != 0 {
+        if constraint.left != constraint.right {
             self.constraints.push(constraint)
         }
     }
@@ -324,21 +303,19 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
             visitor.visit_body(body);
             if visitor.constraints.len() != 0 {
                 use rustc_errors::*;
-                let mut builder = self.tcx.sess.struct_span_err(span, "Cannot resolve the following units of measures:");
                 for constraint in visitor.constraints.drain(..) {
-                    let (numerator, denominator) = constraint.split();
-
+                    let mut builder = self.tcx.sess.struct_span_err(constraint.span, "Cannot resolve the following units of measures:");
                     let mut expected = DiagnosticStyledString::new();
-                    expected.push_normal(format!("{}", numerator));
+                    expected.push_normal(constraint.describe(true));
 
                     let mut found = DiagnosticStyledString::new();
-                    found.push_normal(format!("{}", denominator));
+                    found.push_normal(constraint.describe(false));
 
                     builder.note_expected_found(&"unit of measure:", expected, found);
-                    builder.span_label(numerator.span, "in this unification");
+                    builder.span_label(constraint.span, "in this unification");
+                    builder.span_label(span.clone(), "While examining this function");
+                    builder.emit();
                 }
-                builder.span_label(span, "While examining this function");
-                builder.emit();
             }
         } else {
             return;
