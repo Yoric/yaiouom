@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `yaiouom` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, yaiouom">
+
+    <title>yaiouom - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate yaiouom</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'yaiouom', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>yaiouom</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/yaiouom/lib.rs.html#1-100' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Units of measure.</p>
+<p>This crate implements a mechanism of units of measure.
+It may be used to manipulate all sorts of measures,
+including physics/engineering (m, kg, s, A, m * s ^ 1,
+...), currencies (EUR, USD, ...), statistics (dollars
+per barrel, engineers per lightbulb, dollars per household
+per year, ...)</p>
+<p>While this is not the first implementation of units of
+measure in Rust, this is the first one that is both
+extensible (you can trivially add new base units),
+compositional (two units defined in different crates
+may interact without trouble) and type-safe (the compiler
+will inform you if you attempt to mix several incompatible
+units of measure without converting them first). However,
+before using this crate, please read the rest of these
+explanations.</p>
+<h1 id="unification-and-the-companion-linter" class="section-header"><a href="#unification-and-the-companion-linter">Unification and the companion linter</a></h1>
+<p>At the time of this writing, the Rust type system is not
+powerful enough to permit an extensible, compositional,
+type-safe representation of units of measure. For this
+reason, other crates implementing units of measure have
+needed to make a choice:</p>
+<ul>
+<li>either prevent compositional extensibility;</li>
+<li>or give up on type safety.</li>
+</ul>
+<p>This crate uses a different approach, by delegating safety
+checks to a specialized checker, <code>yaiouom-checker</code>. This
+checker extends Rust's type system with a mechanism ensuring
+that units of measure are used safely.</p>
+<p>If you do not use the checker, you'll end up with a binary
+that performs (slow) dynamic unit checking in debug builds,
+and no unit checking in optimized builds.</p>
+<p>The linter guarantees that you'll never hit such dynamic
+panics.</p>
+<blockquote>
+<p>You really should use the companion linter :) Also, please see
+the documentation of <a href="struct.Measure.html#method.unify"><code>unify</code></a>.</p>
+</blockquote>
+<h1 id="representation-of-values" class="section-header"><a href="#representation-of-values">Representation of values</a></h1>
+<p>Different values have different rules. Many are f32 or f64,
+but currency computations, for instance, need to be performed
+with either rationals or fixed point arithmetics. Some electrical
+measures are actually complex values. Statistics may use integer
+values for population, etc.</p>
+<p>For this reason, yaiouom does not hardcode a specific representation
+of values. A value with a unit is a <code>Measure&lt;T, U: Unit&gt;</code>, where
+<code>T</code> can be any kind of number or number-like value.</p>
+<h1 id="limitations" class="section-header"><a href="#limitations">Limitations</a></h1>
+<p>As discussed above,</p>
+<blockquote>
+<p>Please use the companion linter! Also, please see the documentation of
+<a href="struct.Measure.html#method.unify"><code>unify</code></a>.</p>
+</blockquote>
+<p>This crate attempts to be strictly minimal.</p>
+<p>Unit conversion is a complicated thing. We do not attempt to
+solve this problem.</p>
+<p>Some values cannot be multiplied or divided (e.g. ºC, ºF, pH,
+dB). We do not attempt to differentiate between units that can be
+multiplied/dived and units that can, although this might happen
+in a future version.</p>
+<p>Some values have different definitions when subtracted. For instance,
+the difference between two dates in seconds is a duration in seconds.
+The difference between two ºC temperatures is a value that may be
+multiplied or divided. We do not attempt to differentiate between
+these things.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="si/index.html"
+                                  title='mod yaiouom::si'>si</a></td>
+                           <td class='docblock-short'>
+                                <p>International system of units.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Dimensionless.html"
+                                  title='struct yaiouom::Dimensionless'>Dimensionless</a></td>
+                           <td class='docblock-short'>
+                                <p>A unit without dimension.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Inv.html"
+                                  title='struct yaiouom::Inv'>Inv</a></td>
+                           <td class='docblock-short'>
+                                <p>The inverse of a unit of measure.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Measure.html"
+                                  title='struct yaiouom::Measure'>Measure</a></td>
+                           <td class='docblock-short'>
+                                <p>A value with a unit.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Mul.html"
+                                  title='struct yaiouom::Mul'>Mul</a></td>
+                           <td class='docblock-short'>
+                                <p>The product of two units of measure.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.RuntimeUnit.html"
+                                  title='struct yaiouom::RuntimeUnit'>RuntimeUnit</a></td>
+                           <td class='docblock-short'>
+                                <p>Runtime representation of a unit.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.BaseUnit.html"
+                                  title='trait yaiouom::BaseUnit'>BaseUnit</a></td>
+                           <td class='docblock-short'>
+                                <p>A base unit of measure (e.g. meters, euros, ...)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Unit.html"
+                                  title='trait yaiouom::Unit'>Unit</a></td>
+                           <td class='docblock-short'>
+                                <p>A unit of measure.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "yaiouom";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
