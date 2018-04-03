@@ -83,19 +83,75 @@ struct UnitConstraints<'v, 'tcx: 'v> {
     tcx: TyCtxt<'v, 'tcx, 'tcx>,
     dimensions: HashMap<Ty<'tcx>, (HashSet<Span>, i32)>,
     def_id: DefId,
+    span: Span,
 }
 impl<'v, 'tcx> std::fmt::Debug for UnitConstraints<'v, 'tcx> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
         self.dimensions.fmt(formatter)
     }
 }
+impl<'v, 'tcx> std::fmt::Display for UnitConstraints<'v, 'tcx> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        let mut first = true;
+        for (ref ty, &(_, ref number)) in &self.dimensions {
+            let name = match ty.sty {
+                ty::TyAdt(ref def, _) =>
+                    self.tcx.item_path_str(def.did),
+                ty::TyParam(ref param) => {
+                    let generics = self.tcx.generics_of(self.def_id);
+                    let def = generics.type_param(&param, self.tcx);
+                    self.tcx.item_path_str(def.def_id)
+                  }
+                _ => unimplemented!()
+            };
+            let exp =
+                if *number == 1 {
+                    "".to_string()
+                } else {
+                    format!("^{}", number)
+                };
+            write!(formatter, "{mul}{name}{exp}",
+                mul = if first { "" } else { " * " },
+                name = name,
+                exp = exp)?;
+            if first {
+                first = false;
+            }
+        }
+        Ok(())
+    }
+}
 
 impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
-    fn from(tcx: TyCtxt<'v, 'tcx, 'tcx>, def_id: DefId) -> Self {
+    fn split(mut self) -> (Self, Self) {
+        let mut numerator = Self {
+            tcx: self.tcx,
+            def_id: self.def_id,
+            dimensions: HashMap::new(),
+            span: self.span,
+        };
+        let mut denominator = Self {
+            tcx: self.tcx,
+            def_id: self.def_id,
+            dimensions: HashMap::new(),
+            span: self.span,
+        };
+        for (key, mut value) in self.dimensions.drain() {
+            if value.1 > 0 {
+                numerator.dimensions.insert(key, value);
+            } else {
+                value.1 = -value.1;
+                denominator.dimensions.insert(key, value);
+            }
+        }
+        (numerator, denominator)
+    }
+    fn from(tcx: TyCtxt<'v, 'tcx, 'tcx>, span: Span, def_id: DefId) -> Self {
         Self {
             tcx,
             def_id,
             dimensions: HashMap::new(),
+            span,
         }
     }
     fn add_one(&mut self, ty: Ty<'tcx>, span: Span, positive: bool) {
@@ -111,21 +167,21 @@ impl<'v, 'tcx> UnitConstraints<'v, 'tcx> {
     fn add(&mut self, ty: Ty<'tcx>, positive: bool) {
         match ty.sty {
             ty::TyAdt(def, subst) => {
-                eprintln!("dim_analyzer: add ({positive}) {:?} with {:?}", def.did, subst,
-                    positive = if positive { "{+}" } else { "{-}" } );
+                // eprintln!("dim_analyzer: add ({positive}) {:?} with {:?}", def.did, subst,
+                //    positive = if positive { "{+}" } else { "{-}" } );
                 let span = self.tcx.def_span(def.did).clone();
                 if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_MUL) {
-                    eprintln!("dim_analyzer: it's `*`");
+                    // eprintln!("dim_analyzer: it's `*`");
                     for item in subst.types() {
                         self.add(&item, positive);
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_INV) {
-                    eprintln!("dim_analyzer: it's `^-1`");
+                    // eprintln!("dim_analyzer: it's `^-1`");
                     for item in subst.types() {
                         self.add(&item, !positive);
                     }
                 } else if attr::contains_name(&self.tcx.get_attrs(def.did), YAOIOUM_ATTR_COMBINATOR_DIMENSIONLESS) {
-                    eprintln!("dim_analyzer: it's `1` -- nothing to do");
+                    // eprintln!("dim_analyzer: it's `1` -- nothing to do");
                 } else {
                     self.add_one(&ty, span, positive);
                 }
@@ -157,10 +213,10 @@ struct GatherConstraintsVisitor<'v, 'tcx: 'v> {
     def_id: DefId,
 }
 impl<'v, 'tcx> GatherConstraintsVisitor<'v, 'tcx> {
-    fn add_unification(&mut self, left: Ty<'tcx>, right: Ty<'tcx>) {
-        eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
+    fn add_unification(&mut self, left: Ty<'tcx>, right: Ty<'tcx>, span: Span) {
+        // eprintln!("dim_analyzer: We need to unify {:?} == {:?}", left, right);
 
-        let mut constraint = UnitConstraints::from(self.tcx, self.def_id);
+        let mut constraint = UnitConstraints::from(self.tcx, span, self.def_id);
         constraint.add(&left, true);
         constraint.add(&right, false);
         constraint.simplify();
@@ -185,13 +241,12 @@ impl<'v, 'tcx> Visitor<'v> for GatherConstraintsVisitor<'v, 'tcx> {
                 if attr::contains_name(&self.tcx.get_attrs(def_id), YAOIOUM_ATTR_CHECK_UNIFY) {
                     // Ok, this is a call to `unify`.
                     let substs = self.tables.node_substs(expr.hir_id);
-                    eprintln!("dim_analyzer: Found a call to unify! {:?}", substs);
 
                     // By definition, `unify` has type `<V: Unit>(self: Measure<T, U>) -> Measure<T, V>`.
                     // We now extract `U` and `V`. We don't care about `T`, it has already been checked
                     // by type inference.
                     // FIXME: For the moment, we assume that `substs` is [T, U, V].
-                    self.add_unification(substs.type_at(1), substs.type_at(2));
+                    self.add_unification(substs.type_at(1), substs.type_at(2), expr.span);
                 }
             }
             // eddyb: Yoric: for everything else (i.e. calling Foo::unify(...)) you just need to look at ExprPath and check that its (unadjusted!) type is TyFnDef (which gives you the def_id)
@@ -219,9 +274,9 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
     }
 
     pub fn analyze(&mut self) {
-        eprintln!("\n\n\ndim_analyzer: -----------   analyze {:?}", self.def_id);
+        // eprintln!("\n\n\ndim_analyzer: -----------   analyze {:?}", self.def_id);
         if self.tables.tainted_by_errors {
-            eprintln!("dim_analyzer: Don't proceed with analysis, there is already an error");
+            // eprintln!("dim_analyzer: Don't proceed with analysis, there is already an error");
             return;
         }
 
@@ -240,13 +295,10 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
             panic!("{:?}: dim_analyzer can't type-check body of {:?}", span, self.def_id);
         });
         let body = self.tcx.hir.body(body_id);
-        eprintln!("dim_analyzer: body {:?}", body);
-
-        let param_env = self.tcx.param_env(self.def_id);
-        eprintln!("dim_analyzer: params {:?}", param_env);
+        // eprintln!("dim_analyzer: body {:?}", body);
 
         if let Some(_) = fn_decl {
-            eprintln!("dim_analyzer: This is a function declaration");
+            // eprintln!("dim_analyzer: This is a function declaration");
             let mut visitor = GatherConstraintsVisitor {
                 tcx: self.tcx,
                 tables: self.tables,
@@ -254,11 +306,23 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
                 def_id: self.def_id,
             };
             visitor.visit_body(body);
-            eprintln!("dim_analyzer: I gathered the following constraints: {:?}", visitor.constraints);
             if visitor.constraints.len() != 0 {
-                eprintln!("{fill}dim_analyzer: I don't know how to solve the following constraints (yet) {:?}\n{fill}",
-                    visitor.constraints,
-                    fill = "\n\n**********************************\n\n");
+                use rustc_errors::*;
+                let mut builder = self.tcx.sess.struct_span_err(span, "Cannot resolve the following units of measures:");
+                for constraint in visitor.constraints.drain(..) {
+                    let (numerator, denominator) = constraint.split();
+
+                    let mut expected = DiagnosticStyledString::new();
+                    expected.push_normal(format!("{}", numerator));
+
+                    let mut found = DiagnosticStyledString::new();
+                    found.push_normal(format!("{}", denominator));
+
+                    builder.note_expected_found(&"unit of measure:", expected, found);
+                    builder.span_label(numerator.span, "in this unification");
+                }
+                builder.span_label(span, "While examining this function");
+                builder.emit();
             }
         } else {
             return;

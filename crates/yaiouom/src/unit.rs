@@ -60,6 +60,7 @@ impl<T: BaseUnit> Unit for T {
 }
 
 /// A value with a unit.
+#[allow(unused_attributes)]
 #[rustc_yaiouom_check_unify_measure]
 pub struct Measure<T, U: Unit> {
     value: T,
@@ -464,6 +465,7 @@ impl RuntimeUnit {
 }
 
 /// A unit without dimension.
+#[allow(unused_attributes)]
 #[rustc_yaiouom_combinator_dimensionless]
 pub struct Dimensionless;
 impl Unit for Dimensionless {
@@ -481,7 +483,7 @@ impl<T> From<T> for Measure<T, Dimensionless> {
     }
 }
 impl<T> Measure<T, Dimensionless> {
-    fn unwrap(self) -> T {
+    pub fn unwrap(self) -> T {
         self.value
     }
 }
@@ -493,6 +495,7 @@ impl<T> Measure<T, Dimensionless> {
 ///
 /// See the documentation of [unify](struct.Measure.html#method.unify) for details
 /// on how to work around this limitation.
+#[allow(unused_attributes)]
 #[rustc_yaiouom_combinator_mul]
 pub struct Mul<A, B> where A: Unit, B: Unit {
     left: PhantomData<A>,
@@ -513,6 +516,7 @@ impl<A: Unit, B: Unit> Unit for Mul<A, B> {
 ///
 /// See the documentation of [unify](struct.Measure.html#method.unify) for details
 /// on how to work around this limitation.
+#[allow(unused_attributes)]
 #[rustc_yaiouom_combinator_inv]
 pub struct Inv<A> where A: Unit {
     inner: PhantomData<A>
