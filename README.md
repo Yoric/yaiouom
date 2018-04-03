@@ -42,7 +42,7 @@ The linter guarantees that you'll never hit such dynamic
 panics.
 
 > You really should use the companion linter :) Also, please see
-> the documentation of [`unify`](struct.Measure.html#method.unify).
+> the documentation of [`unify`](https://yoric.github.io/yaiouom/yaiouom/struct.Measure.html#method.unify).
 
 
 
@@ -65,7 +65,7 @@ of values. A value with a unit is a `Measure<T, U: Unit>`, where
 As discussed above,
 
 > Please use the companion linter! Also, please see the documentation of
-> [`unify`](struct.Measure.html#method.unify).
+> [`unify`](https://yoric.github.io/yaiouom/yaiouom/struct.Measure.html#method.unify).
 
 This crate attempts to be strictly minimal.
 
