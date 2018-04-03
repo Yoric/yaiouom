@@ -1,17 +1,54 @@
 use private;
 pub use logics::{ PDimensionless, PInv, PMul };
+
 use std;
+use std::any::*;
+use std::collections::HashMap;
 use std::marker::PhantomData;
+
+use itertools::Itertools;
+
+/// A base unit of measure (e.g. meters, euros, ...)
+pub trait BaseUnit: Any {
+    const NAME: &'static str;
+}
+impl<T: BaseUnit> private::Sealed for T {}
 
 /// A unit of measure.
 ///
-/// This trait is meant to be used mainly with void structs, but can
-/// be implemented by any type.
-pub trait Unit {
+/// To implement a new Unit, use BaseUnit.
+pub trait Unit: private::Sealed {
     fn new<T>(value: T) -> Measure<T, Self> where Self: Sized {
         Measure::new(value)
     }
-    fn name() -> String;
+
+    /// Return a runtime representation of this unit.
+    /// This method is designed for indexing and debugging.
+    /// Not particularly fast.
+    fn as_runtime() -> RuntimeUnit {
+        let mut runtime = RuntimeUnit::new();
+        Self::add_to_runtime(&mut runtime, true);
+        runtime
+    }
+
+    fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool);
+}
+impl<T: BaseUnit> Unit for T {
+    fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
+        let is_empty = {
+            let entry = repr.dimensions.entry(TypeId::of::<T>())
+                .or_insert_with(|| (T::NAME.to_string(), 0));
+            if positive {
+                entry.1 += 1;
+            } else {
+                entry.1 -= 1;
+            }
+            entry.1 == 0
+        };
+        if is_empty {
+            repr.dimensions.remove(&TypeId::of::<T>());
+        }
+    }
 }
 
 /// A value with a unit.
@@ -20,12 +57,6 @@ pub struct Measure<T, U: Unit> {
     value: T,
     unit: PhantomData<U>,
 }
-
-/// A dimensionless value.
-///
-/// This trait constitutes a proof obligation for the type-checker.
-pub trait Dimensionless: Unit + private::Sealed {}
-
 
 impl<T, U: Unit> Measure<T, U> {
     /// Convert from a dimensionless unit.
@@ -66,6 +97,8 @@ impl<T, U: Unit> Measure<T, U> {
     #[allow(unused_attributes)]
     #[rustc_yaiouom_check_unify]
     pub fn unify<V: Unit>(self) -> Measure<T, V> {
+        // First, ensure that we can perform conversion.
+        debug_assert_eq!(U::as_runtime(), V::as_runtime());
         Measure {
             value: self.value,
             unit: PhantomData,
@@ -110,6 +143,17 @@ impl<T, U: Unit> Measure<T, U> {
             value: Into::into(self.value),
             unit: PhantomData
         }
+    }
+
+    /// ```
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
+    ///
+    /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
+    /// assert_eq!(one_meter_usize.as_runtime().to_string(), "m");
+    /// ```
+    pub fn as_runtime(&self) -> RuntimeUnit {
+        U::as_runtime()
     }
 }
 
@@ -252,7 +296,7 @@ impl<T, U: Unit> std::ops::Div<T> for Measure<T, U> where T: std::ops::Div<T> {
     ///
     /// let ten_meters : Measure<i32, Meter> = Measure::new(10);
     /// let one_meter : Measure<i32, Meter> = ten_meters / 10;
-    /// assert_eq!(ten_meters.as_ref(), &1);
+    /// assert_eq!(one_meter.as_ref(), &1);
     /// ```
     fn div(self, rhs: T) -> Self::Output {
         Measure {
@@ -286,7 +330,63 @@ impl<T, U: Unit> std::iter::Product for Measure<T, U> where T: std::iter::Produc
 }
 
 impl<T, U: Unit> std::fmt::Debug for Measure<T, U> where T: std::fmt::Debug {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
-        write!(formatter, "{:?}{}", self.value, U::name())
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(fmt, "{:?}{}", self.value, U::as_runtime().to_string())
+    }
+}
+
+
+/// Runtime representation of a unit.
+///
+/// Used mainly for debug assertions and for debug formatting.
+#[derive(PartialEq, Eq)]
+pub struct RuntimeUnit {
+    dimensions: HashMap<TypeId, (String, i32)>,
+}
+impl std::fmt::Debug for RuntimeUnit {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(fmt, "{}", self.to_string())
+    }
+}
+impl RuntimeUnit {
+    fn new() -> Self {
+        Self {
+            dimensions: HashMap::new()
+        }
+    }
+
+    /// Display a RuntimeUnit as a string.
+    ///
+    /// Positives come before negatives, but otherwise, the order of elements
+    /// is not specified. A dimensionless unit returns `""`.
+    ///
+    /// ```
+    /// use yaiouom::*;
+    /// use yaiouom::si::*;
+    ///
+    /// let unit_str = PMul::<Meter, PInv<Second>>::as_runtime().to_string();
+    /// assert_eq!(&unit_str, "m * s^-1");
+    ///
+    /// let unit_str_2 = PMul::<PInv<Second>, Meter>::as_runtime().to_string();
+    /// assert_eq!(&unit_str_2, "m * s^-1");
+    /// ```
+    pub fn to_string(&self) -> String {
+        // First display the positive values.
+        let positives = self.dimensions.values()
+            .filter_map(|x| match x.1 {
+                0 => panic!(),
+                1 => Some(x.0.clone()),
+                n if n > 1 => Some(format!("{}^{}", x.0, n)),
+                _ => None
+            });
+        // Then display the negative values.
+        let negatives = self.dimensions.values()
+            .filter_map(|x| match x.1 {
+                0 => panic!(),
+                n if n <= -1 => Some(format!("{}^{}", x.0, n)),
+                _ => None
+            });
+        format!("{}", positives.chain(negatives)
+            .format(" * "))
     }
 }

@@ -261,7 +261,7 @@ impl<'a, 'tcx> DimAnalyzer<'a, 'tcx> where 'tcx: 'a {
                     fill = "\n\n**********************************\n\n");
             }
         } else {
-            panic!("dim_analyzer: I don't know what to do with this");
+            return;
         }
     }
 }

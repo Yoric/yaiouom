@@ -1,30 +1,22 @@
 //! International system of units.
-use unit::Unit;
+use unit::BaseUnit;
 
 pub struct Meter;
-impl Unit for Meter {
-    fn name() -> String {
-        format!("m")
-    }
+impl BaseUnit for Meter {
+    const NAME: &'static str = "m";
 }
 
 pub struct Second;
-impl Unit for Second {
-    fn name() -> String {
-        format!("s")
-    }
+impl BaseUnit for Second {
+    const NAME: &'static str = "s";
 }
 
 pub struct Kg;
-impl Unit for Kg {
-    fn name() -> String {
-        format!("kg")
-    }
+impl BaseUnit for Kg {
+    const NAME: &'static str = "kg";
 }
 
 pub struct Ampere;
-impl Unit for Ampere {
-    fn name() -> String {
-        format!("A")
-    }
+impl BaseUnit for Ampere {
+    const NAME: &'static str = "A";
 }
