@@ -1,11 +1,16 @@
 [package]
 name = "yaiouom"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["David Teller <D.O.Teller@gmail.com>"]
-description = "Yet Another Implementation Of Units Of Measure. Extensible, strongly-typed units of measure, with a custom type system (based on F#'s unit of measures) implemented as a linter."
+description = "Extensible, strongly-typed units of measure, with a custom type system (based on F#'s unit of measures) implemented as a linter."
+readme = "../../README.md"
+repository = "https://github.com/Yoric/yaiouom"
+keywords = ["units", "uom", "dimensional-analysis", "dimensions", "linter"]
+categories = ["science", "simulation", "data-structures"]
+license = "MIT"
 
 [dependencies]
-itertools = "*"
+itertools = "^0.7"
 
 [dev-dependencies]
 
