@@ -22,7 +22,10 @@ impl<T: BaseUnit> private::Sealed for T {}
 ///
 /// To implement a new Unit, use BaseUnit.
 pub trait Unit: private::Sealed {
-    fn new<T>(value: T) -> Measure<T, Self> where Self: Sized {
+    fn new<T>(value: T) -> Measure<T, Self>
+    where
+        Self: Sized,
+    {
         Measure::new(value)
     }
 
@@ -45,7 +48,9 @@ pub trait Unit: private::Sealed {
 impl<T: BaseUnit> Unit for T {
     fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
         let is_empty = {
-            let entry = repr.dimensions.entry(TypeId::of::<T>())
+            let entry = repr
+                .dimensions
+                .entry(TypeId::of::<T>())
                 .or_insert_with(|| (T::NAME.to_string(), 0));
             if positive {
                 entry.1 += 1;
@@ -176,10 +181,13 @@ impl<T, U: Unit> Measure<T, U> {
     /// let one_meter_usize = Meter::new(1 as i32);
     /// let one_meter_isize : Measure<i64, Meter> = Measure::from(one_meter_usize);
     /// ```
-    pub fn from<V>(value: Measure<V, U>) -> Self where T: From<V> {
+    pub fn from<V>(value: Measure<V, U>) -> Self
+    where
+        T: From<V>,
+    {
         Self {
             value: From::from(value.value),
-            unit: PhantomData
+            unit: PhantomData,
         }
     }
 
@@ -196,10 +204,13 @@ impl<T, U: Unit> Measure<T, U> {
     /// let one_meter_usize : Measure<i32, Meter> = Measure::new(1);
     /// let one_meter_isize : Measure<i64, Meter> = one_meter_usize.into();
     /// ```
-    pub fn into<V>(self) -> Measure<V, U> where T: Into<V> {
+    pub fn into<V>(self) -> Measure<V, U>
+    where
+        T: Into<V>,
+    {
         Measure {
             value: Into::into(self.value),
-            unit: PhantomData
+            unit: PhantomData,
         }
     }
 
@@ -223,7 +234,10 @@ impl<T, U: Unit> Measure<T, U> {
     }
 }
 
-impl<T, A: Unit> Measure<T, Mul<A, A>> where T: num_traits::float::Float {
+impl<T, A: Unit> Measure<T, Mul<A, A>>
+where
+    T: num_traits::float::Float,
+{
     /// Compute the square root of a value.
     pub fn sqrt(self) -> Measure<T, A> {
         Measure {
@@ -233,7 +247,10 @@ impl<T, A: Unit> Measure<T, Mul<A, A>> where T: num_traits::float::Float {
     }
 }
 
-impl<T, U: Unit> num_traits::ops::inv::Inv for Measure<T, U> where T: num_traits::ops::inv::Inv {
+impl<T, U: Unit> num_traits::ops::inv::Inv for Measure<T, U>
+where
+    T: num_traits::ops::inv::Inv,
+{
     type Output = Measure<T::Output, Inv<U>>;
     /// Unary operator for retrieving the multiplicative inverse, or reciprocal, of a value.
     fn inv(self) -> Self::Output {
@@ -250,38 +267,53 @@ impl<T, U: Unit> AsRef<T> for Measure<T, U> {
     }
 }
 
-impl<T, U: Unit> Clone for Measure<T, U> where T: Clone {
+impl<T, U: Unit> Clone for Measure<T, U>
+where
+    T: Clone,
+{
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
-            unit: PhantomData
+            unit: PhantomData,
         }
     }
 }
 
-impl<T, U: Unit> Copy for Measure<T, U> where T: Copy { }
+impl<T, U: Unit> Copy for Measure<T, U> where T: Copy {}
 
-impl<T, U: Unit> PartialEq for Measure<T, U> where T: PartialEq {
+impl<T, U: Unit> PartialEq for Measure<T, U>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&self.value, &other.value)
     }
 }
 
-impl<T, U: Unit> Eq for Measure<T, U> where T: PartialEq { }
+impl<T, U: Unit> Eq for Measure<T, U> where T: PartialEq {}
 
-impl<T, U: Unit> PartialOrd for Measure<T, U> where T: PartialOrd {
+impl<T, U: Unit> PartialOrd for Measure<T, U>
+where
+    T: PartialOrd,
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         PartialOrd::partial_cmp(&self.value, &other.value)
     }
 }
 
-impl<T, U: Unit> Ord for Measure<T, U> where T: Ord {
+impl<T, U: Unit> Ord for Measure<T, U>
+where
+    T: Ord,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         Ord::cmp(&self.value, &other.value)
     }
 }
 
-impl<T, U: Unit> std::ops::Neg for Measure<T, U> where T: std::ops::Neg {
+impl<T, U: Unit> std::ops::Neg for Measure<T, U>
+where
+    T: std::ops::Neg,
+{
     type Output = Measure<T::Output, U>;
     fn neg(self) -> Self::Output {
         Measure {
@@ -291,7 +323,10 @@ impl<T, U: Unit> std::ops::Neg for Measure<T, U> where T: std::ops::Neg {
     }
 }
 
-impl<T, U: Unit> num_traits::identities::Zero for Measure<T, U> where T: num_traits::identities::Zero {
+impl<T, U: Unit> num_traits::identities::Zero for Measure<T, U>
+where
+    T: num_traits::identities::Zero,
+{
     fn zero() -> Self {
         Self {
             value: T::zero(),
@@ -316,7 +351,10 @@ impl<T, U: Unit> num_traits::identities::Zero for Measure<T, U> where T: num_tra
 /// let two_meters = one_meter + one_meter;
 /// assert_eq!(*two_meters.as_ref(), 2);
 /// ```
-impl<T, U: Unit> std::ops::Add<Self> for Measure<T, U> where T: std::ops::Add<Output = T> {
+impl<T, U: Unit> std::ops::Add<Self> for Measure<T, U>
+where
+    T: std::ops::Add<Output = T>,
+{
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
         Measure {
@@ -326,7 +364,10 @@ impl<T, U: Unit> std::ops::Add<Self> for Measure<T, U> where T: std::ops::Add<Ou
     }
 }
 
-impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U> where T: std::ops::Mul<T> {
+impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U>
+where
+    T: std::ops::Mul<T>,
+{
     type Output = Measure<<T as std::ops::Mul>::Output, U>;
     /// Multiply a dimensionless value with a measure.
     ///
@@ -346,7 +387,8 @@ impl<T, U: Unit> std::ops::Mul<T> for Measure<T, U> where T: std::ops::Mul<T> {
     }
 }
 
-impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
+impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U>
+where
     T: std::ops::Mul<T>,
 {
     type Output = Measure<<T as std::ops::Mul>::Output, Mul<U, V>>;
@@ -368,7 +410,8 @@ impl<T, U: Unit, V: Unit> std::ops::Mul<Measure<T, V>> for Measure<T, U> where
     }
 }
 
-impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
+impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U>
+where
     T: std::ops::Div<T>,
 {
     type Output = Measure<<T as std::ops::Div>::Output, Mul<U, Inv<V>>>;
@@ -392,8 +435,10 @@ impl<T, U: Unit, V: Unit> std::ops::Div<Measure<T, V>> for Measure<T, U> where
     }
 }
 
-
-impl<T, U: Unit> std::ops::Div<T> for Measure<T, U> where T: std::ops::Div<T> {
+impl<T, U: Unit> std::ops::Div<T> for Measure<T, U>
+where
+    T: std::ops::Div<T>,
+{
     type Output = Measure<<T as std::ops::Div>::Output, U>;
     /// Divide a dimensionless value by a measure.
     ///
@@ -413,10 +458,12 @@ impl<T, U: Unit> std::ops::Div<T> for Measure<T, U> where T: std::ops::Div<T> {
     }
 }
 
-impl<T, U: Unit> std::iter::Sum for Measure<T, U> where T: std::iter::Sum {
+impl<T, U: Unit> std::iter::Sum for Measure<T, U>
+where
+    T: std::iter::Sum,
+{
     fn sum<I: std::iter::Iterator<Item = Self>>(iter: I) -> Self {
-        let sum = iter.map(|m| m.value)
-            .sum();
+        let sum = iter.map(|m| m.value).sum();
         Measure {
             value: sum,
             unit: PhantomData,
@@ -424,11 +471,12 @@ impl<T, U: Unit> std::iter::Sum for Measure<T, U> where T: std::iter::Sum {
     }
 }
 
-
-impl<T, U: Unit> std::iter::Product for Measure<T, U> where T: std::iter::Product {
+impl<T, U: Unit> std::iter::Product for Measure<T, U>
+where
+    T: std::iter::Product,
+{
     fn product<I: std::iter::Iterator<Item = Self>>(iter: I) -> Self {
-        let product = iter.map(|m| m.value)
-            .product();
+        let product = iter.map(|m| m.value).product();
         Measure {
             value: product,
             unit: PhantomData,
@@ -436,7 +484,10 @@ impl<T, U: Unit> std::iter::Product for Measure<T, U> where T: std::iter::Produc
     }
 }
 
-impl<T, U: Unit> std::fmt::Debug for Measure<T, U> where T: std::fmt::Debug {
+impl<T, U: Unit> std::fmt::Debug for Measure<T, U>
+where
+    T: std::fmt::Debug,
+{
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
         write!(fmt, "{:?}{}", self.value, U::as_runtime().to_string())
     }
@@ -463,7 +514,7 @@ impl std::fmt::Debug for RuntimeUnit {
 impl RuntimeUnit {
     fn new() -> Self {
         Self {
-            dimensions: HashMap::new()
+            dimensions: HashMap::new(),
         }
     }
 
@@ -494,22 +545,19 @@ impl RuntimeUnit {
     /// This method is fine for debugging, but should not be used in a tight loop.
     pub fn to_string(&self) -> String {
         // First display the positive values.
-        let positives = self.dimensions.values()
-            .filter_map(|x| match x.1 {
-                0 => panic!(),
-                1 => Some(x.0.clone()),
-                n if n > 1 => Some(format!("{}^{}", x.0, n)),
-                _ => None
-            });
+        let positives = self.dimensions.values().filter_map(|x| match x.1 {
+            0 => panic!(),
+            1 => Some(x.0.clone()),
+            n if n > 1 => Some(format!("{}^{}", x.0, n)),
+            _ => None,
+        });
         // Then display the negative values.
-        let negatives = self.dimensions.values()
-            .filter_map(|x| match x.1 {
-                0 => panic!(),
-                n if n <= -1 => Some(format!("{}^{}", x.0, n)),
-                _ => None
-            });
-        format!("{}", positives.chain(negatives)
-            .format(" * "))
+        let negatives = self.dimensions.values().filter_map(|x| match x.1 {
+            0 => panic!(),
+            n if n <= -1 => Some(format!("{}^{}", x.0, n)),
+            _ => None,
+        });
+        format!("{}", positives.chain(negatives).format(" * "))
     }
 }
 
@@ -546,11 +594,15 @@ impl<T> Measure<T, Dimensionless> {
 /// on how to work around this limitation.
 #[allow(unused_attributes)]
 #[rustc_yaiouom_combinator_mul]
-pub struct Mul<A, B> where A: Unit, B: Unit {
+pub struct Mul<A, B>
+where
+    A: Unit,
+    B: Unit,
+{
     left: PhantomData<A>,
     right: PhantomData<B>,
 }
-impl<A: Unit, B: Unit> private::Sealed for Mul<A, B> { }
+impl<A: Unit, B: Unit> private::Sealed for Mul<A, B> {}
 impl<A: Unit, B: Unit> Unit for Mul<A, B> {
     fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
         A::add_to_runtime(repr, positive);
@@ -567,13 +619,15 @@ impl<A: Unit, B: Unit> Unit for Mul<A, B> {
 /// on how to work around this limitation.
 #[allow(unused_attributes)]
 #[rustc_yaiouom_combinator_inv]
-pub struct Inv<A> where A: Unit {
-    inner: PhantomData<A>
+pub struct Inv<A>
+where
+    A: Unit,
+{
+    inner: PhantomData<A>,
 }
-impl<A: Unit> private::Sealed for Inv<A> { }
+impl<A: Unit> private::Sealed for Inv<A> {}
 impl<A: Unit> Unit for Inv<A> {
     fn add_to_runtime(repr: &mut RuntimeUnit, positive: bool) {
         A::add_to_runtime(repr, !positive);
     }
 }
-
